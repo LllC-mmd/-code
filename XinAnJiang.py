@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-
+# import os
 
 class XinAnJiang(object):
 
@@ -39,13 +39,15 @@ class XinAnJiang(object):
         self.lh = len(iuh_value)
         self.ic = 0
         self.rsBlock = np.zeros(self.lh, dtype=np.float)
-        self.rssBlock = np.array([self.qrss, 0], dtype=np.float)
-        self.rgBlock = np.array([self.qrg, 0], dtype=np.float)
-        self.u = 10 * self.F / (3.6 * self.dt)  # convert depth to flow
+        self.rssBlock = np.zeros(2, dtype=np.float)
+        self.rgBlock = np.zeros(2, dtype=np.float)
+        self.u = self.F / (3.6 * self.dt)  # convert depth to flow
         # outflow result
-        self.Qs = np.zeros(n)
-        self.Qss = np.zeros(n)
-        self.Qg = np.zeros(n)
+        self.Qs = np.zeros(n, dtype=np.float)
+        self.Qss = np.zeros(n, dtype=np.float)
+        self.Qss[0] = self.qrss
+        self.Qg = np.zeros(n, dtype=np.float)
+        self.Qg[0] = self.qrg
 
     def step(self, p, ep):
         # effective precipitation
@@ -138,13 +140,14 @@ class XinAnJiang(object):
                     self.wd = max(0, self.wd - ed)
 
     def iuh_route(self):
-        # surface flow
-        for jj in range(0, self.lh):
-            self.Qs[self.ic] += self.rsBlock[jj] * self.iuh[jj] * self.u
-        # subsurface flow
-        self.Qss[self.ic] = self.rssBlock[1]*self.kkss + self.rssBlock[0]*(1-self.kkss)*self.u
-        # groundwater flow
-        self.Qg[self.ic] = self.rgBlock[1]*self.kkg + self.rgBlock[0]*(1-self.kkg)*self.u
+        if self.ic > 0:
+            # surface flow
+            for jj in range(0, self.lh):
+                self.Qs[self.ic] += self.rsBlock[jj] * self.iuh[jj] * self.u
+            # subsurface flow
+            self.Qss[self.ic] = self.Qss[self.ic-1]*np.power(self.kkss, 1/12) + self.rssBlock[0]*(1-np.power(self.kkss, 1/12))*self.u
+            # groundwater flow
+            self.Qg[self.ic] = self.Qg[self.ic-1]*np.power(self.kkg, 1/12) + self.rgBlock[0]*(1-np.power(self.kkg, 1/12))*self.u
 
     def save_result(self):
         np.savetxt("Qs.txt", self.Qs, delimiter="\n", fmt='%.3f')
@@ -159,7 +162,9 @@ if __name__ == '__main__':
     e = np.array(df["Ep"])
     xajModel = XinAnJiang(wu_i=0, wl_i=70, wd_i=80, s_i=20, qrss_i=40, qrg_i=20,
                  wum=20, wlm=75, wdm=80, K=0.65, C=0.11, B=0.3, imp=0, sm=20, ex=1, kg=0.3, kss=0.41, kkg=0.99, kkss=0.6,
-                 dt=2, F=537, n=24, iuh_value=[0.3, 0.6, 0.1])
+                 dt=2, F=537, n=24, iuh_value=[0, 0.3, 0.6, 0.1])
     for i in range(0, 24):
         xajModel.step(p=p[i], ep=e[i])
     xajModel.save_result()
+
+#os.system("pyinstaller XinAnJiang.py")
