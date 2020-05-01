@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Line Plot</title>
+    <script src="/library/d3.min.js"></script>
+  </head>
+  <body>
+    <svg width="1200" height="800" id="mainsvg" class="svgs"></svg>
+    <script>
+        // main_group
+        const main_svg = d3.select("#mainsvg");
+        const width = main_svg.attr("width");
+        const height = main_svg.attr("height");
+        const margin = {top: 60, right: 30, bottom: 60, left: 100};
+        const inner_width = width - margin.left - margin.right;  // 1600 - 200 - 30 = 1370
+        const inner_height = height - margin.top - margin.bottom;  // 800 - 60 - 60 = 680
+
+        // x, y, r value and scale
+        const xAxisLabel = '日期';
+        const yAxisLabel = '累积确诊人数（对数）';
+        const xValue = d => d["日期"];
+        const yValue = d => Math.log(d["确诊人数"] + 1);
+        let xScale, yScale;
+        let xAxis, yAxis;
+        let xAxisGroup, yAxisGroup;
+
+        let aduration = 250;
+
+        // Rendering Initialization
+        const render_init = function(seq, t){
+            const g = main_svg.append("g")
+            .attr("transform", `translate(${margin.left}, ${margin.top})`)
+            .attr("id", "maingroup");
+
+            xMin = d3.min(t);
+            xMax = d3.max(t);
+
+            xScale = d3.scaleTime()
+            .domain([xMin, xMax])
+            .range([0, inner_width])
+            .nice();
+
+            yMin = 0.0;
+            yMax = d3.max(seq, d=> d3.max(d,yValue));
+
+            yScale = d3.scaleLinear()
+            .domain([yMin, yMax].reverse())
+            .range([0, innerHeight])
+            .nice();
+
+            xAxis = d3.axisBottom(xScale)
+            .tickSize(-inner_height)
+            .tickPadding(10);   // the distance between tick and axis
+
+            xAxisGroup = g.append('g').call(xAxis)
+            .attr('transform', `translate(${0}, ${innerHeight})`)
+            .attr('id', 'xaxis')
+            .attr('font-size', '1em');
+            
+            xAxisGroup.append('text')
+            .attr("id", "xAxisLabel")
+            .attr('font-size', '1em')
+            .attr('y', 60)
+            .attr('x', innerWidth / 2)
+            .attr('fill', '#333333')
+            .text(xAxisLabel);
+
+            yAxis = d3.axisLeft(yScale)
+            .tickSize(-inner_width)
+            .tickPadding(10);
+
+            yAxisGroup = g.append('g').call(yAxis)
+            .attr('id', 'yaxis')
+            .attr('font-size', '1em');
+                
+            yAxisGroup.append('text')
+            .attr("id", "yAxisLabel")
+            .attr('font-size', '1em')
+            .attr('transform', `rotate(-90)`)
+            .attr('x', -innerHeight / 2)
+            .attr('y', -60)
+            .attr('fill', '#333333')
+            .text(yAxisLabel)
+            .attr('text-anchor', 'middle') // Make label at the middle of axis. 
+            
+            var legend_color = [ "#e5989b",
+                "#ffb4a2",
+                "#b5838d",
+                "#ffcdb2",
+                "#6d6875",
+                "#925111",
+                "#103ffb",
+                "#052190",
+                "#13293d",
+                "#006494",
+                "#247ba0",
+                "#1b98e0",
+                "#cc5805",
+                "#e2711d",
+                "#ff9505",
+                "#028090",
+                "#05658d",
+                "#00A896",
+                "#3d1308",
+                "#780d1e",
+                "#9f2042",
+                "#000000",
+                "#bfcde0",
+                "#5d5d81",
+                "#3b3355"
+            ]
+            
+            var legend_name = ["韩国",
+                "日本",
+                "伊朗",
+                "以色列",
+                "印度",
+                "土耳其",
+                "俄罗斯",
+                "捷克",
+                "比利时",
+                "法国",
+                "荷兰",
+                "英国",
+                "葡萄牙",
+                "西班牙",
+                "意大利",
+                "丹麦",
+                "挪威",
+                "瑞典",
+                "奥地利",
+                "德国",
+                "瑞士",
+                "澳大利亚",
+                "巴西",
+                "加拿大",
+                "美国"
+            ];
+                
+            // draw legend
+            var legend = d3.select('#maingroup').selectAll(".legend")
+            .data(legend_name)
+            .enter().append("g")
+            .attr("class", "legend")
+            .attr("transform", function(d, i) { return "translate(" + (30+Math.floor(i/5)*100) + "," + ((i%5) * 25 + 50) + ")"; });
+			
+            // draw legend colored rectangles
+            legend.append("rect")
+            .data(legend_name) 
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", 30)
+            .attr("height", 20)
+            .style("fill", function(d, i) {return legend_color[i];});
+			
+            // draw legend text
+            legend.append("text")
+            .data(legend_name) 
+            .attr('class', 'legend_text')
+            .attr("x", 40)
+            .attr("y", 9)
+            .attr("dy", ".5em")
+            .style("text-anchor", "start")
+            .text(function(d, i) {return legend_name[i];}); 
+
+            g.append('path').attr('class', 'lineCurve');
+          }
+
+        const render_update = function(seq){
+            // Re-Xscale
+            yMin = 0.0;
+            yMax = d3.max(seq, d => d3.max(d.values, yValue));
+            yScale.domain([yMax, yMin]);
+
+            console.log(yMax);
+
+            // Re-define Xaxis
+            yAxis.scale(yScale);
+            yAxisGroup.call(yAxis);
+
+            // color reference
+            var color = {"韩国": "#e5989b",
+                "日本": "#ffb4a2",
+                "伊朗": "#b5838d",
+                "以色列": "#ffcdb2",
+                "印度": "#6d6875",
+                "土耳其": "#925111",
+                "俄罗斯": "#103ffb",
+                "捷克": "#052190",
+                "比利时": "#13293d",
+                "法国": "#006494",
+                "荷兰": "#247ba0",
+                "英国": "#1b98e0",
+                "葡萄牙": "#cc5805",
+                "西班牙": "#e2711d",
+                "意大利": "#ff9505",
+                "丹麦": "#028090",
+                "挪威": "#05658d",
+                "瑞典": "#00A896",
+                "奥地利": "#3d1308",
+                "德国": "#780d1e",
+                "瑞士": "#9f2042",
+                "澳大利亚": "#000000",
+                "巴西": "#bfcde0",
+                "加拿大": "#5d5d81",
+                "美国": "#3b3355"
+            };
+            
+            const line = d3.line()
+            .x(d => xScale(xValue(d)))
+            .y(d => yScale(yValue(d)));
+            //.curve(d3.curveCardinal.tension(0.5));
+
+            const main_group = d3.select("#maingroup");
+
+            const lineUpdate = main_group.selectAll(".lineCurve").data(seq);
+            const lineEnter = lineUpdate.enter().append('path')
+            .attr('class', 'lineCurve')
+            .attr("fill", "none")
+            .attr('stroke', d => color[d.key])
+            .attr("stroke-width", 2.0)
+            .attr('d', d => line(d.values));
+
+            lineUpdate.merge(lineEnter).transition().ease(d3.easeLinear).duration(aduration)
+            .attr("fill", "none")
+            .attr("d", d => line(d.values))
+        };
+
+        // data 
+        d3.csv("/data/world.csv").then( data => {
+            // data pre-processing
+            data.forEach(d => {
+                d["确诊人数"] = +(d["确诊人数"]);
+                d["日期"] = new Date(d["日期"]);
+            });
+                
+            timeTable = Array.from(new Set(data.map(d => d["日期"])));
+            timeTable = timeTable.sort((a, b)=>{
+                  return new Date(a) - new Date(b);
+            });
+
+            console.log(timeTable);
+
+            nationTable = Array.from(new Set(data.map(d => d["国家"])));
+
+            nationSeq = [];
+            nationTable.forEach(d => {
+                nationSeq.push([])
+            });
+
+            data.forEach(d => {
+                nationSeq[nationTable.indexOf(d["国家"])].push(d);
+            });
+
+            render_init(Array.from(nationSeq.map(d => d.slice(0, 1))), timeTable );
+            let c = 0;
+            intervalID = setInterval(function(){
+                if (c >= 60){
+                    console.log("Time is up");
+                    clearInterval(intervalID);
+                }
+                else {
+                    dataRaw = []
+                    nationSeq.forEach(d => {
+                        for (i = 0; i <= c; i++){
+                            dataRaw.push(d[i])
+                        }
+                    });
+                    
+                    dataNested = d3.nest().key(d => d["国家"])
+                    .entries(dataRaw )
+                    .sort((a, b)=>{
+                        return new Date(a["日期"]) - new Date(b["日期"])
+                    });
+
+                    render_update(dataNested );
+                    c = c + 1;
+                }
+            }, aduration);
+        });
+    </script>
+  </body>
+</html>
