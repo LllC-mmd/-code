@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
+# Batch processiong MODIS NDVI data
 import os
 
-# 设置HEG相关环境变量
-os.environ['MRTDATADIR']='/Users/lyy/Downloads/OuterLIB/hegMACv2.15.Build9.8/heg/data'
-os.environ['PGSHOME']='/Users/lyy/Downloads/OuterLIB/hegMACv2.15.Build9.8/heg/TOOLKIT_MTD'
-os.environ['MRTBINDIR']='/Users/lyy/Downloads/OuterLIB/hegMACv2.15.Build9.8/heg/bin'
+# Env variable settings
+os.environ['MRTDATADIR']='*************/heg/data'
+os.environ['PGSHOME']='*************/heg/TOOLKIT_MTD'
+os.environ['MRTBINDIR']='*************/heg/bin'
 
-hegpath = '/Users/lyy/Downloads/OuterLIB/hegMACv2.15.Build9.8/heg/bin'
+hegpath = '*************/heg/bin'
 hegdo = os.path.join(hegpath, 'resample')
 
 inpath = "/Users/lyy/Downloads/MODIS/raw_data"
@@ -16,6 +16,7 @@ prmpath = "/Users/lyy/Downloads/MODIS/prm_data"
 allfiles = os.listdir(inpath)
 allhdffiles = [f for f in allfiles if f.endswith(".hdf")]
 
+# Modis data in Beijing-Tianjin-Hebei
 corner_dict = {"h26v04": ["( 49.999999996 104.432583132 )", "( 39.999999996 140.015144392 )"],
                "h26v05": ["( 39.999999996 92.37604306 )", "( 29.999999997 117.486656023 )"],
                "h27v04": ["( 49.999999996 117.486656023 )", "( 39.999999996 155.572382658 )"],
