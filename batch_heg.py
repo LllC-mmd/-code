@@ -9,9 +9,9 @@ os.environ['MRTBINDIR']='*************/heg/bin'
 hegpath = '*************/heg/bin'
 hegdo = os.path.join(hegpath, 'resample')
 
-inpath = "/Users/lyy/Downloads/MODIS/raw_data"
-outpath = "/Users/lyy/Downloads/MODIS/tiff_data"
-prmpath = "/Users/lyy/Downloads/MODIS/prm_data"
+inpath = "*************/MODIS/raw_data"
+outpath = "*************/MODIS/tiff_data"
+prmpath = "*************/MODIS/prm_data"
 
 allfiles = os.listdir(inpath)
 allhdffiles = [f for f in allfiles if f.endswith(".hdf")]
