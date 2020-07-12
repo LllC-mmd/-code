@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Refined Anthropogenic Heat Forecasting</title>
+    <script src="/library/d3.min.js"></script>
+  </head>
+  <body>
+    <div class="model">
+        <button type="button" id="plot" onclick="drawModel()">Plot New Model</button>
+        <button type="button" id="clearModel" onclick="clearModel()">Clear Model</button>
+    </div>
+    <div class="tiff">
+        <button type="button" id="plot" onclick="drawYear()">Plot New Image</button>
+        <button type="button" id="clearCanvas" onclick="clearCanvas()">Clear Image</button>
+    </div>
+    <div id="container"></div>
+    <style>
+        .tiff{
+            position:relative;
+            top: 5px;
+            left: 100px;
+            width: 800px;
+            height: 40px;
+        }
+        .tiff #clearCanvas{
+            width:150px; 
+            height:30px;
+            font-size: 15px;
+        }
+        .tiff #plot{
+            width:150px; 
+            height:30px;
+            font-size: 15px;
+        }
+        .tiff select{
+            width: 100px;
+            height: 30px;
+            font-size: 15px;
+        }
+        .tiff select option{
+            font-size: 10px;
+        }
+        .model{
+            position:relative;
+            top: 50px;
+            left: 950px;
+            width: 800px;
+            height: 40px;
+        }
+        .model #clearModel{
+            width:150px; 
+            height:30px;
+            font-size: 15px;
+        }
+        .model #plot{
+            width:150px; 
+            height:30px;
+            font-size: 15px;
+        }
+        .model select{
+            width: 100px;
+            height: 30px;
+            font-size: 15px;
+        }
+        .model select option{
+            font-size: 10px;
+        }
+        
+        #container{
+            margin: 20px;
+        }
+        pre {
+            background-color: white;
+            border: none;
+            font-size: 15px;
+            overflow: scroll;
+        }
+    </style>
+    <script>
+    // ---Settings of the tiff plot
+    const Tiff_Shape = {width: 1800, height: 900, x: 20, y: 20}
+    const Tiff_margin = {x: 10, y: 10}
+
+    // ---Settings of the tiff plot
+    const canvasShape = {width: 600, height: 800};
+
+    // ---Settings of the scatter plot
+    SP_dx = 100
+    const SP_Shape =  {width: 800, height: 800}
+    const SP_margin = {top: 10, right: 10, bottom: 60, left: 60};
+    const xAxisLabel = 'Human Settlement Index';
+    const yAxisLabel = 'Anthropogenic Heat';
+    const inner_width = SP_Shape.width - SP_margin.left - SP_margin.right;  
+    const inner_height = SP_Shape.height - SP_margin.top - SP_margin.bottom;  
+    let xScale, yScale;
+    let x_min, x_max, y_min, y_max;
+
+    // ---Settings of the choice of DataVis
+    const defaultYear = "2008";
+    var currYear = "2008";
+    const yearList = ["2008", "2009", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017"];
+    const defaultMethod = "Square";
+    var currMethod = "Square";
+    const methodList = ["Square", "Linear"];
+    var data_pt = [];
+    var projection = d3.geoMercator().rotate([0, 0]);;
+
+    var RAHF_reg = function(method){
+        d3.json("/RAHF_reg/"+method).then(function(data) {
+            R2 = data.R2;
+            predData = data.predData;
+
+            // Plot the predicted line
+            const line = d3.line()
+                .x(d => xScale(d.HSI))
+                .y(d => yScale(d.AH));
+
+            SP_g = d3.select("#SP_group");
+            
+            SP_g.append("path")
+                .attr('class', 'lineCurve')
+                .attr("fill", "none")
+                .attr('stroke', "red")
+                .attr("stroke-width", 2.0)
+                .attr('d', d => line(predData));
+        });
+    }
+
+    var RAHF_draw = function(y){
+        d3.json("/RAHF_draw/"+y).then(function(data) {
+            d3.json("/data/BTH_region.geojson").then(function(bd_data){
+                console.log(data);
+                var img = data.data;
+                var img_height = data.height;
+                var img_width = data.width;
+            
+                var geoTransform = data.transform;
+                var originX = geoTransform[0];
+                var dx = geoTransform[1];
+                var originY = geoTransform[3];
+                var dy = geoTransform[5];
+
+                // Rotate the map sets the longitude of origin for UTM Zone 50N projection.
+                // The para1 of transform.rotate is chosen as the middle longitude of the img 
+                // projection = d3.geoMercator().rotate([-(originX+img_width/2*dx), 0]).scale(500);
+                // projection = d3.geoTransverseMercator().rotate([-112, 0]);
+                const pathGenerator = d3.geoPath().projection(projection);
+
+                var context = canvas.node().getContext("2d");
+
+                projection.fitSize([canvasShape.width, canvasShape.height], bd_data);
+
+                var path = d3.geoPath().projection(projection).context(context);
+
+                context.beginPath();
+                context.strokeStyle = "black";
+                context.fillStyle = "gray";
+                path(bd_data);
+                context.fill();
+                context.stroke();
+                context.closePath();
+
+                var contextRaster = canvasRaster.node().getContext("2d");
+        
+                var id = contextRaster.createImageData(canvasShape.width, canvasShape.height);
+                var contextData = id.data;
+                var pos = 0; 
+
+                for (var j = 0; j < canvasShape.height; j++){
+                    for (var i = 0; i < canvasShape.width; i++){
+                        var pointCoords = projection.invert([i,j]);
+                        var px = (pointCoords[0]-originX)/dx;
+                        var py = (pointCoords[1]-originY)/dy;
+                        if(Math.floor(px) >= 0 && Math.ceil(px) < img_width && Math.floor(py) >= 0 && Math.ceil(py) < img_height){
+                            // do bilinear interpolation fo projected img 
+                            var value = img[Math.floor(py)][Math.floor(px)]*(Math.ceil(px)-px)*(Math.ceil(py)-py)
+                                        + img[Math.floor(py)][Math.ceil(px)]*(px-Math.floor(px))*(Math.ceil(py)-py) 
+                                        + img[Math.ceil(py)][Math.floor(px)]*(Math.ceil(px)-px)*(py-Math.floor(py)) 
+                                        + img[Math.ceil(py)][Math.ceil(px)]*(px-Math.floor(px))*(py-Math.floor(py));
+                            var ratio = d3.min([80.0, d3.max([0.0, value])]);
+                            var color = d3.rgb(d3.interpolateRdBu(1-ratio));
+                            // RGBA value
+                            contextData[pos] = color.r;
+                            contextData[pos+1] = color.g;
+                            contextData[pos+2] = color.b;
+                            if (ratio == 0){
+                                contextData[pos+3] = 0;
+                            }
+                            else{
+                                contextData[pos+3] = 180;
+                            }
+                            pos = pos + 4;
+                            data_pt.push({x: pointCoords[0], y: pointCoords[1], val: value})
+                        }   
+                    }
+                }
+                contextRaster.putImageData( id, 0, 0);
+                context.drawImage(canvasRaster.node(), 0, 0);
+            });
+        })
+    }
+
+    var drawModel = function() {
+            this.blur();
+            RAHF_reg(currMethod);;
+    }
+
+    var drawYear = function() {
+            this.blur();
+            RAHF_draw(currYear);
+    }
+
+    var clearCanvas = function(){
+        var canvas = document.getElementById("myCanvas");
+        context = canvas.getContext("2d");
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.beginPath();
+
+        var ras_canvas = document.getElementById("rasterCanvas");
+        ras_context = ras_canvas.getContext("2d");
+        ras_context.clearRect(0, 0, ras_canvas.width, ras_canvas.height);
+        ras_context.beginPath();
+    }
+
+    var clearModel = function(){
+        d3.selectAll(".lineCurve").remove();
+        currMethod = defaultMethod;
+    }
+
+    var tiff_svg = d3.select("#container").append("svg")
+                    .attr("id", "main_svg")
+                    .attr("width", Tiff_Shape.width+"px")
+                    .attr("height", Tiff_Shape.height+"px")
+                    .append("g");
+
+    var foreignObject = tiff_svg.append("foreignObject")
+                            .attr("x", Tiff_margin.x)
+                            .attr("y", Tiff_margin.y)
+                            .attr("width", canvasShape.width)
+                            .attr("height", canvasShape.height);
+    
+    var foreginBody = foreignObject.append("xhtml:body")
+                        .style("margin", "0px")
+                        .style("padding", "0px")
+                        .style("background-color", "none")
+                        .style("width", canvasShape.width+"px")
+                        .style("height", canvasShape.height+"px")
+                        .style("border", "1px solid lightgray");
+    
+    var canvas = foreginBody.append("canvas")
+                    .attr("id", "myCanvas")
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("width", canvasShape.width)
+                    .attr("height", canvasShape.height)
+                    .on("mousemove", function(){
+                        var pointCoords = projection.invert([d3.mouse(this)[0], d3.mouse(this)[1]]);
+                        var pos = {x: pointCoords[0], y: pointCoords[1]};
+                        pos.minX = pos.x - 0.01;
+                        pos.maxX = pos.x + 0.01;
+                        pos.minY = pos.y - 0.01;
+                        pos.maxY = pos.y + 0.01;
+
+                        // hit detection
+                        var matches = data_pt.filter(function(d) {
+                            if (d.x >= pos.minX && d.x <= pos.maxX && d.y >= pos.minY && d.y <= pos.maxY) {
+                                return d;
+                            }
+                        });
+
+                        var out = "Mouse at ("+ pos.x + ", " + pos.y + ") now.\n"+ matches.length + " pixels was captured by mouse"+ "\n";
+                        matches.forEach(function(d) {
+                            out += "x: " + d.x + ", y: " + d.y + ", val: " + d.val + "\n";
+                        });
+
+                        // output mouse hit details
+                        d3.select("pre").text(out);
+                    });
+    
+    var canvasRaster = foreginBody.append("canvas")
+                    .attr("id", "rasterCanvas")
+                    .attr("x", 0)
+                    .attr("y", 0)
+                    .attr("width", canvasShape.width)
+                    .attr("height", canvasShape.height)
+                    .style("display","none");
+
+
+    // Get original AH~HSI data
+    d3.json("/RAHF_data").then(function(data){
+        var sp_svg = tiff_svg.append("svg")
+                        .attr("id", "sp_svg")
+                        .attr("width", SP_Shape.width+"px")
+                        .attr("height", SP_Shape.height+"px")
+                        .attr("transform", `translate(${canvasShape.width+SP_dx}, ${SP_margin.top})`);
+            
+
+        x_min = d3.min(data, d => d.HSI);
+        x_max = d3.max(data, d => d.HSI);
+
+        y_min = d3.min(data, d => d.AH);
+        y_max = d3.max(data, d => d.AH);
+
+        const SP_g = sp_svg.append("g")
+            .attr("transform", `translate(${SP_margin.left}, ${SP_margin.top})`)
+            .attr("id", "SP_group");
+
+        xScale = d3.scaleLinear()
+            .domain([x_min, x_max])
+            .range([0, inner_width])
+            .nice();
+        
+        yScale = d3.scaleLinear()
+            .domain([y_min, y_max].reverse())
+            .range([0, inner_height])
+            .nice();
+        
+        xAxis = d3.axisBottom(xScale)
+            .tickSize(-inner_height)
+            .tickPadding(10);   // the distance between tick and axis
+
+        xAxisGroup = SP_g.append('g').call(xAxis)
+            .attr('transform', `translate(${0}, ${inner_height})`)
+            .attr('id', 'xaxis')
+            .attr('font-size', '1em');
+            
+        xAxisGroup.append('text')
+            .attr("id", "xAxisLabel")
+            .attr('font-size', '1em')
+            .attr('y', 50)
+            .attr('x', inner_width / 2)
+            .attr('fill', '#333333')
+            .text(xAxisLabel);
+
+        yAxis = d3.axisLeft(yScale)
+            .tickSize(-inner_width)
+            .tickPadding(10);
+
+        yAxisGroup = SP_g.append('g').call(yAxis)
+            .attr('id', 'yaxis')
+            .attr('font-size', '1em');
+                
+        yAxisGroup.append('text')
+            .attr("id", "yAxisLabel")
+            .attr('font-size', '1em')
+            .attr('transform', `rotate(-90)`)
+            .attr('x', -inner_height / 2)
+            .attr('y', -45)
+            .attr('fill', '#333333')
+            .text(yAxisLabel)
+            .attr('text-anchor', 'middle') // Make label at the middle of axis. 
+
+        SP_g.selectAll("circle").data(data).join("circle")
+                .attr('cx', d => xScale(d.HSI) )
+                .attr('cy', d => yScale(d.AH) )
+                .attr('r', 3)
+                .attr('fill', "blue")
+                .attr('opacity', 0.8);
+    });
+
+
+    var reg_dropdown = d3.select(".model")
+                        .insert("select", "svg")
+                        .attr("transform", `translate(${200}, ${0})`)
+                        .on("change", function(){
+                            var method_new = d3.select(this).property("value");
+                            currMethod = method_new;
+                        });
+
+    reg_dropdown.selectAll("option")
+                .data(methodList)
+                .enter().append("option")
+                .attr("value", function (d) {return d;})
+                .text(function (d) {return d;});
+
+    var year_dropdown = d3.select(".tiff")
+                    .insert("select", "svg")
+                    .on("change", function(){
+                        var year_new = d3.select(this).property("value");
+                        currYear = year_new;
+                    });
+
+    year_dropdown.selectAll("option")
+            .data(yearList)
+            .enter().append("option")
+            .attr("value", function (d) {return d;})
+            .text(function (d) {return d;});
+    
+    d3.select("#container").append("pre");
+
+  </script>
+  </body>
+</html>
